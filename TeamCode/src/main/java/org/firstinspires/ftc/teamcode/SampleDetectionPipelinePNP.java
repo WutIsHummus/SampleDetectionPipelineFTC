@@ -54,7 +54,6 @@ public class SampleDetectionPipelinePNP extends OpenCvPipeline
     /*
      * Colors
      */
-    static final Scalar TEAL = new Scalar(3, 148, 252);
     static final Scalar RED = new Scalar(255, 0, 0);
     static final Scalar BLUE = new Scalar(0, 0, 255);
     static final Scalar YELLOW = new Scalar(255, 255, 0);

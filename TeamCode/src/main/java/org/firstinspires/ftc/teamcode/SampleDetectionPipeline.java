@@ -1,11 +1,9 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import org.openftc.easyopencv.OpenCvPipeline;
 
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
-import org.opencv.core.MatOfInt;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
@@ -15,13 +13,11 @@ import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
-public class RedBlueDetectionPipelineNoPNP extends OpenCvPipeline
+public class SampleDetectionPipeline extends OpenCvPipeline
 {
     /*
-     * Our working image buffers
+     * Working image buffers
      */
     Mat ycrcbMat = new Mat();
     Mat crMat = new Mat();
@@ -45,7 +41,7 @@ public class RedBlueDetectionPipelineNoPNP extends OpenCvPipeline
     static final int RED_MASK_THRESHOLD = 198;
 
     /*
-     * The elements we use for noise reduction
+     * Elements for noise reduction
      */
     Mat erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(3.5, 3.5));
     Mat dilateElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(3.5, 3.5));
@@ -53,7 +49,6 @@ public class RedBlueDetectionPipelineNoPNP extends OpenCvPipeline
     /*
      * Colors
      */
-    static final Scalar TEAL = new Scalar(3, 148, 252);
     static final Scalar RED = new Scalar(255, 0, 0);
     static final Scalar BLUE = new Scalar(0, 0, 255);
     static final Scalar YELLOW = new Scalar(255, 255, 0);
@@ -70,7 +65,7 @@ public class RedBlueDetectionPipelineNoPNP extends OpenCvPipeline
     volatile ArrayList<AnalyzedStone> clientStoneList = new ArrayList<>();
 
     /*
-     * Some stuff to handle returning our various buffers
+     * Viewport stages
      */
     enum Stage
     {
@@ -82,18 +77,12 @@ public class RedBlueDetectionPipelineNoPNP extends OpenCvPipeline
     }
 
     Stage[] stages = Stage.values();
-
-    // Keep track of what stage the viewport is showing
     int stageNum = 0;
+
 
     @Override
     public void onViewportTapped()
     {
-        /*
-         * Note that this method is invoked from the UI thread
-         * so whatever we do here, we must do quickly.
-         */
-
         int nextStageNum = stageNum + 1;
 
         if(nextStageNum >= stages.length)
@@ -107,7 +96,6 @@ public class RedBlueDetectionPipelineNoPNP extends OpenCvPipeline
     @Override
     public Mat processFrame(Mat input)
     {
-        // We'll be updating this with new data below
         internalStoneList.clear();
 
         /*
@@ -152,9 +140,12 @@ public class RedBlueDetectionPipelineNoPNP extends OpenCvPipeline
             {
                 return contoursOnPlainImageMat;
             }
-        }
 
-        return input;
+            default:
+            {
+                return input;
+            }
+        }
     }
 
     public ArrayList<AnalyzedStone> getDetectedStones()
@@ -167,19 +158,13 @@ public class RedBlueDetectionPipelineNoPNP extends OpenCvPipeline
         // Convert the input image to YCrCb color space
         Imgproc.cvtColor(input, ycrcbMat, Imgproc.COLOR_RGB2YCrCb);
 
-        // Extract the Cb channel for blue detection
+        // Extract the Cb and Cr channels
         Core.extractChannel(ycrcbMat, cbMat, 2); // Cb channel index is 2
-
-        // Extract the Cr channel for red detection
         Core.extractChannel(ycrcbMat, crMat, 1); // Cr channel index is 1
 
-        // Threshold the Cb channel to form a mask for blue
+        // Threshold the channels to form masks
         Imgproc.threshold(cbMat, blueThresholdMat, BLUE_MASK_THRESHOLD, 255, Imgproc.THRESH_BINARY);
-
-        // Threshold the Cr channel to form a mask for red
         Imgproc.threshold(crMat, redThresholdMat, RED_MASK_THRESHOLD, 255, Imgproc.THRESH_BINARY);
-
-        // Threshold the Cb channel to form a mask for yellow
         Imgproc.threshold(cbMat, yellowThresholdMat, YELLOW_MASK_THRESHOLD, 255, Imgproc.THRESH_BINARY_INV);
 
         // Apply morphology to the masks
@@ -197,7 +182,10 @@ public class RedBlueDetectionPipelineNoPNP extends OpenCvPipeline
         ArrayList<MatOfPoint> yellowContoursList = new ArrayList<>();
         Imgproc.findContours(morphedYellowThreshold, yellowContoursList, new Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_NONE);
 
-        // Now analyze the contours
+        // Create a plain image for drawing contours
+        contoursOnPlainImageMat = Mat.zeros(input.size(), input.type());
+
+        // Analyze and draw contours
         for(MatOfPoint contour : blueContoursList)
         {
             analyzeContour(contour, input, "Blue");
@@ -217,9 +205,8 @@ public class RedBlueDetectionPipelineNoPNP extends OpenCvPipeline
     void morphMask(Mat input, Mat output)
     {
         /*
-         * Apply some erosion and dilation for noise reduction
+         * Apply erosion and dilation for noise reduction
          */
-
         Imgproc.erode(input, output, erodeElement);
         Imgproc.erode(output, output, erodeElement);
 
@@ -231,14 +218,14 @@ public class RedBlueDetectionPipelineNoPNP extends OpenCvPipeline
     {
         // Transform the contour to a different format
         Point[] points = contour.toArray();
-        MatOfPoint2f contour2f = new MatOfPoint2f(contour.toArray());
+        MatOfPoint2f contour2f = new MatOfPoint2f(points);
 
-        // Do a rect fit to the contour, and draw it on the screen
+        // Fit a rotated rectangle to the contour and draw it
         RotatedRect rotatedRectFitToContour = Imgproc.minAreaRect(contour2f);
         drawRotatedRect(rotatedRectFitToContour, input, color);
+        drawRotatedRect(rotatedRectFitToContour, contoursOnPlainImageMat, color);
 
-        // The angle OpenCV gives us can be ambiguous, so look at the shape of
-        // the rectangle to fix that.
+        // Adjust the angle based on rectangle dimensions
         double rotRectAngle = rotatedRectFitToContour.angle;
         if (rotatedRectFitToContour.size.width < rotatedRectFitToContour.size.height)
         {
@@ -246,9 +233,10 @@ public class RedBlueDetectionPipelineNoPNP extends OpenCvPipeline
         }
 
         // Compute the angle and store it
-        double angle = -(rotRectAngle-180);
-        drawTagText(rotatedRectFitToContour, Integer.toString((int) Math.round(angle))+" deg", input, color);
+        double angle = -(rotRectAngle - 180);
+        drawTagText(rotatedRectFitToContour, Integer.toString((int) Math.round(angle)) + " deg", input, color);
 
+        // Store the detected stone information
         AnalyzedStone analyzedStone = new AnalyzedStone();
         analyzedStone.angle = rotRectAngle;
         analyzedStone.color = color;
@@ -263,8 +251,8 @@ public class RedBlueDetectionPipelineNoPNP extends OpenCvPipeline
                 mat, // The buffer we're drawing on
                 text, // The text we're drawing
                 new Point( // The anchor point for the text
-                        rect.center.x-50,  // x anchor point
-                        rect.center.y+25), // y anchor point
+                        rect.center.x - 50,  // x anchor point
+                        rect.center.y + 25), // y anchor point
                 Imgproc.FONT_HERSHEY_PLAIN, // Font
                 1, // Font size
                 colorScalar, // Font color
@@ -274,23 +262,22 @@ public class RedBlueDetectionPipelineNoPNP extends OpenCvPipeline
     static void drawRotatedRect(RotatedRect rect, Mat drawOn, String color)
     {
         /*
-         * Draws a rotated rect by drawing each of the 4 lines individually
+         * Draws a rotated rectangle by drawing each of the 4 lines individually
          */
-
         Point[] points = new Point[4];
         rect.points(points);
 
         Scalar colorScalar = getColorScalar(color);
 
-        for(int i = 0; i < 4; ++i)
+        for (int i = 0; i < 4; ++i)
         {
-            Imgproc.line(drawOn, points[i], points[(i+1)%4], colorScalar, 2);
+            Imgproc.line(drawOn, points[i], points[(i + 1) % 4], colorScalar, 2);
         }
     }
 
     static Scalar getColorScalar(String color)
     {
-        switch(color)
+        switch (color)
         {
             case "Blue":
                 return BLUE;
