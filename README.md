@@ -3,4 +3,5 @@
 
 
 **Team 3977**
-![image](https://github.com/user-attachments/assets/887a2b8f-9319-4329-8093-4caba92f6c96)
+
+![ezgif-5596cee1723c89](https://github.com/user-attachments/assets/d7665a7e-0355-45f2-8723-b05707c7f547)
